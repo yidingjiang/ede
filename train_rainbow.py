@@ -193,10 +193,13 @@ def train(args, seeds):
             total_var = torch.sqrt(eps_var + ale_var)
             eps_var, ale_var = torch.sqrt(eps_var), torch.sqrt(ale_var)
             mean = mean.mean(axis=1)
+                
             if args.thompson_sampling:
                 eps_var = eps_var * torch.randn(eps_var.shape, device=eps_var.device)
             # value = mean + decay * eps_var * torch.randn(eps_var.shape, device=eps_var.device)
             # value = mean + decay * eps_var
+            if args.egreedy_ensemble:
+                value = mean
             if args.diff_epsilon_schedule:
                 value = mean + loguniform_decay.expand(args.num_processes, mean.size(1)) * eps_var
             elif args.total_uncertainty:
@@ -206,11 +209,20 @@ def train(args, seeds):
             else:
                 value = mean + decay * eps_var
             action = value.argmax(1).reshape(-1, 1)
+
+            if args.egreedy_ensemble:
+                cur_epsilon = epsilon(t)
+                for i in range(args.num_processes):
+                    if np.random.uniform() < cur_epsilon:
+                        action[i] = torch.LongTensor([envs.action_space.sample()]).to(args.device)
+
             if t % 500 == 0:
                 stats = {
                     "ucb / mean": torch.max(mean, 1)[0].mean().item(),
                     "ucb / eps uncertainty":  torch.max(eps_var, 1)[0].mean().item(),
                     "ucb / ale uncertainty":  torch.max(ale_var, 1)[0].mean().item(),
+                    "ucb / mean eps uncertainty":  eps_var.mean().item(),
+                    "ucb / mean ale uncertainty":  ale_var.mean().item(),
                     "ucb / value": torch.max(value, 1)[0].mean().item()
                 }
                 wandb.log(stats, step=t * args.num_processes)

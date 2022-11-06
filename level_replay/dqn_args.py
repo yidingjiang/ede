@@ -30,6 +30,7 @@ parser.add_argument(
 parser.add_argument(
     "--reset_interval", default=-1, type=int, help="how often to reset the linear layer"
 )
+parser.add_argument("--egreedy_ensemble", type=lambda x: bool(strtobool(x)), default=False, help="use qrdqn ensemble but use epsilon greedy")
 parser.add_argument("--qrdqn_bootstrap", type=lambda x: bool(strtobool(x)), default=False, help="bootstrapped qrdqn style")
 parser.add_argument("--qrdqn_always_train_feat", type=lambda x: bool(strtobool(x)), default=False, help="not freeze feature for bootstrapped qrdqn")
 parser.add_argument("--double_qrdqn", type=lambda x: bool(strtobool(x)), default=False, help="doubl dqn for qrdqn")
