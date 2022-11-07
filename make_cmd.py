@@ -62,7 +62,10 @@ if __name__ == "__main__":
         "egreedy_ensemble": ["True", "False"],
         # "seed": list(range(2)),
         "n_ensemble": [5],
-        "qrdqn_always_train_feat": ["True", "False"],
+        "diff_epsilon_schedule": ["True"],
+        "ucb_c": [30],
+        "diff_eps_schedule_base": [0.6],
+        "diff_eps_schedule_exp": [7]
     }
     # hparams = {
     #     "algo": ["rainbow"],

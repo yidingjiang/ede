@@ -200,7 +200,7 @@ def train(args, seeds):
             # value = mean + decay * eps_var
             if args.egreedy_ensemble:
                 value = mean
-            if args.diff_epsilon_schedule:
+            elif args.diff_epsilon_schedule:
                 value = mean + loguniform_decay.expand(args.num_processes, mean.size(1)) * eps_var
             elif args.total_uncertainty:
                 value = mean + decay * total_var
