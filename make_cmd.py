@@ -61,7 +61,7 @@ if __name__ == "__main__":
         "qrdqn": ["False"],
         "bootstrap_dqn": ["True"],
         "bootstrap_dqn_ucb": ["True"],
-        "seed": list(range(5)),
+        "seed": list(range(3)),
         "n_ensemble": [3],
         "diff_epsilon_schedule": ["True"],
         "ucb_c": [30],
