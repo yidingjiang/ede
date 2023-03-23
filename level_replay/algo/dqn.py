@@ -9,10 +9,41 @@ from __future__ import division
 import math
 from statistics import quantiles
 
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.distributions import Categorical
+
+
+class RunningMeanStd(object):
+    # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
+    def __init__(self, epsilon=1e-4, shape=()):
+        self.mean = np.zeros(shape, 'float64')
+        self.var = np.ones(shape, 'float64')
+        self.count = epsilon
+
+    def update(self, x):
+        batch_mean = np.mean(x, axis=0)
+        batch_var = np.var(x, axis=0)
+        batch_count = x.shape[0]
+        self.update_from_moments(batch_mean, batch_var, batch_count)
+
+    def update_from_moments(self, batch_mean, batch_var, batch_count):
+        delta = batch_mean - self.mean
+        tot_count = self.count + batch_count
+
+        new_mean = self.mean + delta * batch_count / tot_count
+        m_a = self.var * (self.count)
+        m_b = batch_var * (batch_count)
+        M2 = m_a + m_b + np.square(delta) * self.count * batch_count / (self.count + batch_count)
+        new_var = M2 / (self.count + batch_count)
+
+        new_count = batch_count + self.count
+
+        self.mean = new_mean
+        self.var = new_var
+        self.count = new_count
 
 
 def init(module, weight_init, bias_init, gain=1):
@@ -277,6 +308,62 @@ class DQN(nn.Module):
             self.c51 = False
         self.make_network(args, env)
 
+        if args.rnd:
+            self.rnd = True
+            self.predictor_feature = nn.Sequential(
+                nn.Conv2d(1, 32, kernel_size=4, stride=2),
+                nn.LeakyReLU(),
+                nn.Conv2d(32, 64, kernel_size=4, stride=2),
+                nn.LeakyReLU(),
+                nn.Conv2d(64, 64, kernel_size=3, stride=1),
+                nn.LeakyReLU(),
+                Flatten()
+            )
+            self.target_feature = nn.Sequential(
+                nn.Conv2d(1, 32, kernel_size=4, stride=2),
+                nn.LeakyReLU(),
+                nn.Conv2d(32, 64, kernel_size=4, stride=2),
+                nn.LeakyReLU(),
+                nn.Conv2d(64, 64, kernel_size=3, stride=1),
+                nn.LeakyReLU(),
+                Flatten()
+            )
+            example_state = torch.randn((1,) + env.observation_space.shape)
+            rnd_conve_size = self.predictor_feature(example_state).shape[1]
+            self.predictor_mlp = nn.Sequential(
+                nn.Linear(rnd_conve_size, 512),
+                nn.ReLU(),
+                nn.Linear(512, 512),
+                nn.ReLU(),
+                nn.Linear(512, 512)
+            )
+            self.target_mlp = nn.Sequential(
+                nn.Linear(rnd_conve_size, 512),
+                nn.ReLU(),
+                nn.Linear(512, 512),
+                nn.ReLU(),
+                nn.Linear(512, 512)
+            )
+            self.rnd_predictor = nn.Sequential(self.predictor_feature, self.predictor_mlp)
+            self.rnd_target = nn.Sequential(self.target_feature, self.target_mlp)
+            # Initialize weights    
+            for m in self.rnd_predictor.modules():
+                if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                    init.orthogonal_(m.weight, np.sqrt(2))
+                    m.bias.data.zero_()
+            # Initialize weights    
+            for m in self.rnd_target.modules():
+                if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                    init.orthogonal_(m.weight, np.sqrt(2))
+                    m.bias.data.zero_()
+
+            # Set target parameters as untrainable
+            for param in self.tarnd_targetrget.parameters():
+                param.requires_grad = False
+
+            self.forward_mse = nn.MSELoss(reduction='none')
+            self.obs_rms = RunningMeanStd(shape=(1, 3, 32, 32))
+
         if args.attach_task_id:  # only works for regular dqn for now
             self.task_embedder = nn.Embedding(args.num_train_seeds, 64)
 
@@ -437,6 +524,32 @@ class DQN(nn.Module):
         all_quantiles_mean = torch.stack([q.mean(1) for q in all_quantiles])  # [K, B, action]
         mean = torch.mean(all_quantiles_mean, axis=0)
         return mean
+
+    def compute_rnd(self, next_obs):
+        next_obs = torch.FloatTensor(next_obs).to(self.rnd_target.device)
+
+        target_next_feature = self.rnd_target(next_obs)
+        predict_next_feature = self.rnd_predictor(next_obs)
+        intrinsic_reward = (target_next_feature - predict_next_feature).pow(2).sum(1) / 2
+
+        return intrinsic_reward.data.cpu().numpy()
+
+    def compute_rnd_loss(self, next_obs_batch):
+        next_obs_batch = ((next_obs_batch - self.obs_rms.mean) / np.sqrt(self.obs_rms.var)).clip(-5, 5)
+        # for Curiosity-driven(Random Network Distillation)
+        predict_next_state_feature = self.rnd_predictor(next_obs_batch)
+        target_next_state_feature = self.rnd_target(next_obs_batch)
+
+        forward_loss = self.forward_mse(predict_next_state_feature, target_next_state_feature.detach()).mean(-1)
+        # Proportion of exp used for predictor update
+        mask = torch.rand(len(forward_loss)).to(self.rnd_target.device)
+        mask = (mask < 0.25).type(torch.FloatTensor).to(self.rnd_target.device)
+        forward_loss = (forward_loss * mask).sum() / torch.max(mask.sum(), torch.Tensor([1]).to(self.rnd_target.device))
+        return forward_loss
+
+    def update_rnd_rms(self, next_obs_batch):
+        self.obs_rms.update(next_obs_batch)
+
 
     def effective_rank(self, delta=0.01):
         if self.qrdqn and self.qrdqn_bootstrap or self.bootstrap_dqn:

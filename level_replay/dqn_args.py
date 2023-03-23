@@ -63,6 +63,8 @@ parser.add_argument("--record_td_error", type=lambda x: bool(strtobool(x)), defa
 parser.add_argument("--advanced_test", type=lambda x: bool(strtobool(x)), default=False, help="not use e-greedy at test")
 parser.add_argument('--exploration_coeff_mult', default=1, type=float)
 parser.add_argument('--exploration_coeff_n', default=10, type=int)
+
+parser.add_argument("--rnd", type=lambda x: bool(strtobool(x)), default=False, help="record RND loss")
 ###########################################################################
 ###########################################################################
 
