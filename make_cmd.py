@@ -52,21 +52,38 @@ if __name__ == "__main__":
     args = parse_args()
 
     script_name = "train_rainbow.py"
+
     hparams = {
         "algo": ["rainbow"],
         "env_name": ["miner", "ninja", "plunder", "starpilot", 
                      "heist", "jumper", "leaper", "maze", "climber", "coinrun",
                      "dodgeball", "fruitbot", "bigfish", "bossfight", "caveflyer", "chaser"],
-        "qrdqn": ["True"],
-        "qrdqn_bootstrap": ["True"],
-        "egreedy_ensemble": ["True", "False"],
-        # "seed": list(range(2)),
-        "n_ensemble": [5],
+        "qrdqn": ["False"],
+        "bootstrap_dqn": ["True"],
+        "bootstrap_dqn_ucb": ["True"],
+        "seed": list(range(5)),
+        "n_ensemble": [3],
         "diff_epsilon_schedule": ["True"],
         "ucb_c": [30],
         "diff_eps_schedule_base": [0.6],
         "diff_eps_schedule_exp": [7]
     }
+    # hparams = {
+    #     "algo": ["rainbow"],
+    #     "env_name": ["miner", "ninja", "plunder", "starpilot", 
+    #                  "heist", "jumper", "leaper", "maze", "climber", "coinrun",
+    #                  "dodgeball", "fruitbot", "bigfish", "bossfight", "caveflyer", "chaser"],
+    #     "qrdqn": ["True"],
+    #     "qrdqn_bootstrap": ["True"],
+    #     "egreedy_ensemble": ["True", "False"],
+    #     # "seed": list(range(2)),
+    #     "n_ensemble": [5],
+    #     "diff_epsilon_schedule": ["True"],
+    #     "ucb_c": [30],
+    #     "diff_eps_schedule_base": [0.6],
+    #     "diff_eps_schedule_exp": [7]
+    # }
+
     # hparams = {
     #     "algo": ["rainbow"],
     #     # "env_name": ["Crafter"],

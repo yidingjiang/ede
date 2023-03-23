@@ -242,7 +242,10 @@ def train(args, seeds):
         elif args.bootstrap_dqn_ucb and args.bootstrap_dqn:
             mean, std = agent.get_bootstrap_dqn_values(state)
             decay = args.ucb_c
-            value = mean + decay * std
+            if args.diff_epsilon_schedule:
+                value = mean + loguniform_decay.expand(args.num_processes, mean.size(1)) * std
+            else:
+                value = mean + decay * std
             action = value.argmax(1).reshape(-1, 1)
             if t % 500 == 0:
                 stats = {
